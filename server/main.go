@@ -31,11 +31,12 @@ func (s stdrwc) Close() error {
 }
 
 func main() {
-	log.Println("Démarrage du serveur LSP...")
+	log.SetOutput(os.Stderr)
+	log.Println("Start LSP server...")
 
 	err := updateCommentsRepo()
 	if err != nil {
-		log.Fatalf("erreur lors de la mise à jour du dépôt des commentaires: %v", err)
+		log.Fatalf("error while updating comments: %v", err)
 	}
 
 	stream := jsonrpc2.NewStream(stdrwc{})
@@ -50,7 +51,7 @@ func main() {
 	<-conn.Done()
 
 	if err := conn.Err(); err != nil {
-		log.Fatalf("Erreur lors de l'exécution du serveur LSP: %v", err)
+		log.Fatalf("error while executing LSP server: %v", err)
 	}
 }
 

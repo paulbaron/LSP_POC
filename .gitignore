@@ -1,0 +1,3 @@
+out
+server/*.exe
+client/node_modules

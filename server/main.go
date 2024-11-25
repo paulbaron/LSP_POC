@@ -33,26 +33,22 @@ func (s stdrwc) Close() error {
 func main() {
 	log.Println("Démarrage du serveur LSP...")
 
-	// Mettre à jour le dépôt des commentaires
 	err := updateCommentsRepo()
 	if err != nil {
 		log.Fatalf("erreur lors de la mise à jour du dépôt des commentaires: %v", err)
 	}
 
-	// Utiliser stdio pour la communication LSP
 	stream := jsonrpc2.NewStream(stdrwc{})
 	conn := jsonrpc2.NewConn(stream)
 	handler := handler{conn: conn}
 
-	// Démarrer le traitement des requêtes
 	conn.Go(context.Background(), func(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 		return handler.handle(ctx, reply, req)
 	})
 
-	// Attendre la fin de la connexion
+	// Wait for end of connection
 	<-conn.Done()
 
-	// Vérifier s'il y a eu une erreur
 	if err := conn.Err(); err != nil {
 		log.Fatalf("Erreur lors de l'exécution du serveur LSP: %v", err)
 	}
@@ -65,7 +61,6 @@ type handler struct {
 func (h *handler) handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	switch req.Method() {
 	case "initialize":
-		// Gérer l'initialisation
 		var params protocol.InitializeParams
 		if err := json.Unmarshal(req.Params(), &params); err != nil {
 			return reply(ctx, nil, err)
@@ -103,12 +98,11 @@ func (h *handler) handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrp
 		if err := json.Unmarshal(req.Params(), &params); err != nil {
 			return reply(ctx, nil, err)
 		}
-		// Proposer une action pour ajouter un commentaire
 		action := protocol.CodeAction{
-			Title: "Ajouter un commentaire",
+			Title: "Add a new comment",
 			Kind:  "quickfix",
 			Command: &protocol.Command{
-				Title:     "Ajouter un commentaire",
+				Title:     "Add a new comment",
 				Command:   "comment.add",
 				Arguments: []interface{}{params.TextDocument.URI, params.Range},
 			},
@@ -122,31 +116,31 @@ func (h *handler) handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrp
 		switch params.Command {
 		case "comment.add":
 			if len(params.Arguments) != 2 {
-				return reply(ctx, nil, fmt.Errorf("nombre d'arguments invalide"))
+				return reply(ctx, nil, fmt.Errorf("invalid arguments count"))
 			}
 			uriStr, ok := params.Arguments[0].(string)
 			if !ok {
-				return reply(ctx, nil, fmt.Errorf("type d'argument invalide pour l'URI"))
+				return reply(ctx, nil, fmt.Errorf("invalid argument type for URI"))
 			}
 			uri := protocol.DocumentURI(uriStr)
 			rangeMap, ok := params.Arguments[1].(map[string]interface{})
 			if !ok {
-				return reply(ctx, nil, fmt.Errorf("type d'argument invalide pour la plage"))
+				return reply(ctx, nil, fmt.Errorf("invalid argument type for range"))
 			}
 			var rng protocol.Range
 			rangeData, _ := json.Marshal(rangeMap)
 			json.Unmarshal(rangeData, &rng)
-			// Appeler la fonction pour ajouter le commentaire
+			// Add comment function
 			err := h.addComment(ctx, uri, rng)
 			if err != nil {
 				return reply(ctx, nil, err)
 			}
 			return reply(ctx, nil, nil)
 		default:
-			return reply(ctx, nil, fmt.Errorf("commande non reconnue"))
+			return reply(ctx, nil, fmt.Errorf("unrecognised command"))
 		}
 	default:
-		return reply(ctx, nil, fmt.Errorf("méthode non prise en charge : %s", req.Method()))
+		return reply(ctx, nil, fmt.Errorf("method is not handled : %s", req.Method()))
 	}
 }
 
@@ -194,13 +188,13 @@ func applyPatchAndGetPositions(originalText string, patchText string) ([]int, er
 		return nil, err
 	}
 
-	// Appliquer le patch pour obtenir le nouveau texte
+	// Apply patch
 	_, results := dmp.PatchApply(patches, originalText)
 	if len(results) == 0 {
-		return nil, fmt.Errorf("le patch n'a pas pu être appliqué")
+		return nil, fmt.Errorf("patch could not be applied")
 	}
 
-	// Trouver les positions où les patchs ont été appliqués
+	// Find where the patch was applied
 	var positions []int
 	for _, p := range patches {
 		startLine := p.Start1
@@ -213,29 +207,29 @@ func applyPatchAndGetPositions(originalText string, patchText string) ([]int, er
 func (h *handler) publishDiagnostics(ctx context.Context, uri protocol.DocumentURI) {
 	filePath := uriToPath(uri)
 
-	// Charger le contenu actuel du fichier
+	// Load file content
 	currentContentBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Printf("Erreur lors de la lecture du fichier %s: %v", filePath, err)
+		log.Printf("Error while reading the file %s: %v", filePath, err)
 		return
 	}
 	currentContent := string(currentContentBytes)
 
-	// Charger les commentaires et les patchs
+	// Load comments and patches
 	commentFile, err := loadCommentFile(filePath)
 	if err != nil {
-		log.Printf("Aucun commentaire pour %s: %v", filePath, err)
+		log.Printf("No comments found for %s: %v", filePath, err)
 		return
 	}
 
-	// Vérifier si le commit est présent dans la branche courante
+	// Check if commit is on current branch
 	commitPresent, err := isCommitInCurrentBranch(commentFile.Commit)
 	if err != nil {
-		log.Printf("Erreur lors de la vérification du commit: %v", err)
+		log.Printf("Error while checking commit: %v", err)
 		return
 	}
 	if !commitPresent {
-		log.Printf("Le commit %s n'est pas présent dans la branche courante. Aucun commentaire n'est affiché.", commentFile.Commit)
+		log.Printf("Commit %s is not on current branch. No comment will be displayed.", commentFile.Commit)
 		return
 	}
 
@@ -243,7 +237,7 @@ func (h *handler) publishDiagnostics(ctx context.Context, uri protocol.DocumentU
 	for _, patch := range commentFile.Patches {
 		positions, err := applyPatchAndGetPositions(currentContent, patch.Patch)
 		if err != nil {
-			log.Printf("Erreur lors de l'application du patch: %v", err)
+			log.Printf("Error while applying the patch: %v", err)
 			continue
 		}
 
@@ -280,7 +274,7 @@ func getUserRepoDir(filePath string) (string, error) {
 	cmd.Dir = filepath.Dir(filePath)
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("erreur lors de la récupération du répertoire du dépôt Git de l'utilisateur : %v", err)
+		return "", fmt.Errorf("Could not get the git repository from user folder : %v", err)
 	}
 	repoDir := strings.TrimSpace(string(output))
 	return repoDir, nil
@@ -289,7 +283,7 @@ func getUserRepoDir(filePath string) (string, error) {
 func (h *handler) addComment(ctx context.Context, uri protocol.DocumentURI, rng protocol.Range) error {
 	// Demander le texte du commentaire
 	params := map[string]interface{}{
-		"prompt": "Entrez le commentaire :",
+		"prompt": "Write new comment :",
 	}
 	var result string
 	_, err := h.conn.Call(ctx, "window/showInputBox", params, &result)
@@ -298,16 +292,16 @@ func (h *handler) addComment(ctx context.Context, uri protocol.DocumentURI, rng 
 	}
 
 	if result == "" {
-		return fmt.Errorf("commentaire annulé ou vide")
+		return fmt.Errorf("comment canceled or empty")
 	}
 
-	// Générer le patch
+	// Generate patch
 	err = generateAndSaveCommentPatch(uri, rng, result)
 	if err != nil {
 		return err
 	}
 
-	// Publier les diagnostics pour mettre à jour l'affichage des commentaires
+	// Update comments display
 	h.publishDiagnostics(ctx, uri)
 
 	return nil
@@ -320,38 +314,38 @@ func generateAndSaveCommentPatch(uri protocol.DocumentURI, rng protocol.Range, c
 		return err
 	}
 
-	// Obtenir le contenu actuel du fichier
+	// Get file content
 	currentContentBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		return fmt.Errorf("erreur lors de la lecture du fichier %s: %v", filePath, err)
+		return fmt.Errorf("error while reading file %s: %v", filePath, err)
 	}
 	currentContent := string(currentContentBytes)
 
-	// Obtenir le chemin relatif du fichier par rapport au dépôt
+	// Get relative path of the file from repository root
 	relativePath, err := filepath.Rel(userRepoDir, filePath)
 	if err != nil {
-		return fmt.Errorf("erreur lors de la détermination du chemin relatif : %v", err)
+		return fmt.Errorf("error while getting relative path : %v", err)
 	}
 
-	// Obtenir le contenu du fichier au commit courant
+	// Get file content for current commit
 	cmd := exec.Command("git", "show", "HEAD:"+relativePath)
 	cmd.Dir = userRepoDir
 	originalContentBytes, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("erreur lors de la récupération du contenu au commit courant: %v", err)
+		return fmt.Errorf("error while retrieving current commit: %v", err)
 	}
 	originalContent := string(originalContentBytes)
 
-	// Obtenir le hash du commit courant
+	// Get current commit hash
 	cmd = exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = userRepoDir
 	commitBytes, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("erreur lors de la récupération du commit courant: %v", err)
+		return fmt.Errorf("error while retrieving current commit: %v", err)
 	}
 	commitHash := strings.TrimSpace(string(commitBytes))
 
-	// Extraire le texte sélectionné
+	// Extract selected text
 	//	lines := strings.Split(currentContent, "\n")
 	//	startLine := int(rng.Start.Line)
 	//	endLine := int(rng.End.Line)
@@ -360,60 +354,60 @@ func generateAndSaveCommentPatch(uri protocol.DocumentURI, rng protocol.Range, c
 	//	}
 	//	selectedText := strings.Join(lines[startLine:endLine+1], "\n")
 
-	// Générer le diff entre le contenu original et le contenu actuel
+	// Generate diff between original file content and actual file content
 	dmp := dmp.New()
 	patches := dmp.PatchMake(originalContent, currentContent)
 	patchText := dmp.PatchToText(patches)
 
-	// Charger ou créer le fichier de commentaires
+	// Load or create comment file
 	commentFilePath := filepath.Join("comments", filepath.Base(filePath)+".json")
 	var commentFile CommentFile
 	if _, err := os.Stat(commentFilePath); os.IsNotExist(err) {
-		// Le fichier n'existe pas, créer un nouveau CommentFile
+		// If the file does not exist, create it
 		commentFile = CommentFile{
 			Commit:  commitHash,
 			Patches: []Patch{},
 		}
 	} else {
-		// Charger le fichier existant
+		// Load existing file
 		data, err := os.ReadFile(commentFilePath)
 		if err != nil {
-			return fmt.Errorf("erreur lors de la lecture du fichier de commentaires: %v", err)
+			return fmt.Errorf("error while reading comment file: %v", err)
 		}
 		err = json.Unmarshal(data, &commentFile)
 		if err != nil {
-			return fmt.Errorf("erreur lors du parsing du fichier de commentaires: %v", err)
+			return fmt.Errorf("error while parsing comment file: %v", err)
 		}
 	}
 
-	// Vérifier si le commit a changé
+	// Check if commit has changed
 	if commentFile.Commit != commitHash {
-		// Gérer le cas où le commit a changé
+		// If commit has changed
 		commentFile.Commit = commitHash
 		commentFile.Patches = []Patch{}
 	}
 
-	// Ajouter le nouveau commentaire
+	// Add new comment
 	newPatch := Patch{
 		Message: commentText,
 		Patch:   patchText,
 	}
 	commentFile.Patches = append(commentFile.Patches, newPatch)
 
-	// Sauvegarder le fichier de commentaires
+	// Save comment file
 	data, err := json.MarshalIndent(commentFile, "", "  ")
 	if err != nil {
-		return fmt.Errorf("erreur lors de la sérialisation du fichier de commentaires: %v", err)
+		return fmt.Errorf("error while serializing comment file: %v", err)
 	}
 	err = os.WriteFile(commentFilePath, data, 0644)
 	if err != nil {
-		return fmt.Errorf("erreur lors de l'écriture du fichier de commentaires: %v", err)
+		return fmt.Errorf("error while writing comment file: %v", err)
 	}
 
-	// Mettre à jour le dépôt des commentaires
+	// Update comment repository
 	err = updateCommentsRepoAfterChange()
 	if err != nil {
-		return fmt.Errorf("erreur lors de la mise à jour du dépôt des commentaires: %v", err)
+		return fmt.Errorf("error while updating comment repository: %v", err)
 	}
 
 	return nil
@@ -421,11 +415,11 @@ func generateAndSaveCommentPatch(uri protocol.DocumentURI, rng protocol.Range, c
 
 func updateCommentsRepo() error {
 	if _, err := os.Stat("comments"); os.IsNotExist(err) {
-		// Cloner le dépôt
+		// Clone repository
 		cmd := exec.Command("git", "clone", "https://github.com/paulbaron/TestLSPComments.git", "comments")
 		return cmd.Run()
 	} else {
-		// Mettre à jour le dépôt
+		// Update repository
 		cmd := exec.Command("git", "-C", "comments", "pull")
 		return cmd.Run()
 	}
@@ -435,19 +429,19 @@ func updateCommentsRepoAfterChange() error {
 	cmd := exec.Command("git", "-C", "comments", "add", ".")
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("erreur lors de l'ajout des fichiers: %v", err)
+		return fmt.Errorf("error while adding files to git: %v", err)
 	}
 
 	cmd = exec.Command("git", "-C", "comments", "commit", "-m", "Mise à jour des commentaires")
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("erreur lors du commit: %v", err)
+		return fmt.Errorf("error on files commit: %v", err)
 	}
 
 	cmd = exec.Command("git", "-C", "comments", "push")
 	err = cmd.Run()
 	if err != nil {
-		return fmt.Errorf("erreur lors du push: %v", err)
+		return fmt.Errorf("error while pushing new commit: %v", err)
 	}
 
 	return nil

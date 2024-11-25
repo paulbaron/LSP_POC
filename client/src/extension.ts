@@ -14,30 +14,27 @@ let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
 
-
-    // Nom de base de l'exécutable
+    // Server exe file name
     let serverExeName = 'separate_comments';
 
-    // Ajouter l'extension '.exe' sur Windows
+    // Add extension '.exe' for Windows
     if (process.platform === 'win32') {
         serverExeName += '.exe';
     }
 
-    // Chemin vers l'exécutable du serveur Go
+    // Path to exe
     const serverExecutable = context.asAbsolutePath(
         path.join('../server', serverExeName)
     );
 
 	console.debug("Start message");
 
-    // Vérifier si l'exécutable existe
+    // Check if exe exists
     if (!fs.existsSync(serverExecutable)) {
-        console.error(`L'exécutable du serveur LSP n'existe pas : ${serverExecutable}`);
-        // Vous pouvez afficher un message à l'utilisateur ou gérer l'erreur comme vous le souhaitez
+        console.error(`Could not find LSP server exe : ${serverExecutable}`);
         return;
     }
 
-    // Définir les options du serveur en tant qu'exécutable
     const serverOptions: ServerOptions = {
         run: {
             command: serverExecutable,
@@ -51,17 +48,17 @@ export function activate(context: ExtensionContext) {
         }
     };
 
-    // Options pour contrôler le client LSP
+    // Options to control LSP server
     const clientOptions: LanguageClientOptions = {
-        // Enregistrez le serveur pour les documents texte
+        // Only works for plaintext
         documentSelector: [{ scheme: 'file', language: 'plaintext' }],
         synchronize: {
-            // Surveillez les fichiers '.clientrc' dans le workspace
+            // Watch '.clientrc' files in the workspace
             fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
         }
     };
 
-    // Créer le client LSP et démarrer le client.
+    // Create and start LSP client
     client = new LanguageClient(
         'languageServerExample',
         'Language Server Example',
@@ -69,7 +66,7 @@ export function activate(context: ExtensionContext) {
         clientOptions
     );
 
-    // Démarrer le client. Cela lancera également le serveur
+    // Start the client, this will also start the server
     client.start();
 }
 

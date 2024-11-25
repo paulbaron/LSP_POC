@@ -274,7 +274,7 @@ func getUserRepoDir(filePath string) (string, error) {
 	cmd.Dir = filepath.Dir(filePath)
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("Could not get the git repository from user folder : %v", err)
+		return "", fmt.Errorf("could not get the git repository from user folder : %v", err)
 	}
 	repoDir := strings.TrimSpace(string(output))
 	return repoDir, nil
@@ -426,23 +426,25 @@ func updateCommentsRepo() error {
 }
 
 func updateCommentsRepoAfterChange() error {
-	cmd := exec.Command("git", "-C", "comments", "add", ".")
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("error while adding files to git: %v", err)
-	}
+	// Not working RN
+	/*
+		cmd := exec.Command("git", "-C", "comments", "add", ".")
+		err := cmd.Run()
+		if err != nil {
+			return fmt.Errorf("error while adding files to git: %v", err)
+		}
 
-	cmd = exec.Command("git", "-C", "comments", "commit", "-m", "Mise à jour des commentaires")
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("error on files commit: %v", err)
-	}
+		cmd = exec.Command("git", "-C", "comments", "commit", "-m", "Mise à jour des commentaires")
+		err = cmd.Run()
+		if err != nil {
+			return fmt.Errorf("error on files commit: %v", err)
+		}
 
-	cmd = exec.Command("git", "-C", "comments", "push")
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("error while pushing new commit: %v", err)
-	}
-
+		cmd = exec.Command("git", "-C", "comments", "push")
+		err = cmd.Run()
+		if err != nil {
+			return fmt.Errorf("error while pushing new commit: %v", err)
+		}
+	*/
 	return nil
 }

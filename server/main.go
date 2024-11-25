@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	dmp "github.com/sergi/go-diff/diffmatchpatch"
@@ -157,6 +158,7 @@ type Patch struct {
 
 func loadCommentFile(filePath string) (*CommentFile, error) {
 	commentsFile := filepath.Join("comments", filepath.Base(filePath)+".json")
+	log.Printf("Load comment file : %s", commentsFile)
 	data, err := os.ReadFile(commentsFile)
 	if err != nil {
 		return nil, err
@@ -207,11 +209,10 @@ func applyPatchAndGetPositions(originalText string, patchText string) ([]int, er
 
 func (h *handler) publishDiagnostics(ctx context.Context, uri protocol.DocumentURI) {
 	filePath := uriToPath(uri)
-
 	// Load file content
 	currentContentBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Printf("Error while reading the file %s: %v", filePath, err)
+		log.Printf("publishDiagnostics: error while reading file %s: %v", filePath, err)
 		return
 	}
 	currentContent := string(currentContentBytes)
@@ -266,8 +267,29 @@ func (h *handler) publishDiagnostics(ctx context.Context, uri protocol.DocumentU
 }
 
 func uriToPath(uri protocol.DocumentURI) string {
-	parsed, _ := url.Parse(string(uri))
-	return filepath.FromSlash(parsed.Path)
+	parsed, err := url.Parse(string(uri))
+	if err != nil {
+		log.Printf("Failed to parse URI: %v", err)
+		return ""
+	}
+	path := parsed.Path
+	// Handle Windows paths
+	if runtime.GOOS == "windows" {
+		// Remove leading '/' from the path if present
+		path = strings.TrimPrefix(path, "/")
+		// Replace forward slashes with backslashes
+		path = filepath.FromSlash(path)
+	} else {
+		// For Unix-like systems, use FromSlash to handle any backslashes
+		path = filepath.FromSlash(path)
+	}
+	// Decode URL-encoded characters
+	path, err = url.PathUnescape(path)
+	if err != nil {
+		log.Printf("Failed to unescape path: %v", err)
+		return ""
+	}
+	return path
 }
 
 func getUserRepoDir(filePath string) (string, error) {
@@ -314,7 +336,6 @@ func generateAndSaveCommentPatch(uri protocol.DocumentURI, rng protocol.Range, c
 	if err != nil {
 		return err
 	}
-
 	// Get file content
 	currentContentBytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -417,13 +438,15 @@ func generateAndSaveCommentPatch(uri protocol.DocumentURI, rng protocol.Range, c
 func updateCommentsRepo() error {
 	if _, err := os.Stat("comments"); os.IsNotExist(err) {
 		// Clone repository
-		cmd := exec.Command("git", "clone", "https://github.com/paulbaron/TestLSPComments.git", "comments")
-		return cmd.Run()
+		os.Mkdir("comments", os.ModeDir)
+		//		cmd := exec.Command("git", "clone", "https://github.com/paulbaron/TestLSPComments.git", "comments")
+		//		return cmd.Run()
 	} else {
 		// Update repository
-		cmd := exec.Command("git", "-C", "comments", "pull")
-		return cmd.Run()
+		//		cmd := exec.Command("git", "-C", "comments", "pull")
+		//		return cmd.Run()
 	}
+	return nil
 }
 
 func updateCommentsRepoAfterChange() error {

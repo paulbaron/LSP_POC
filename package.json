@@ -9,7 +9,9 @@
 		"url": "https://github.com/Microsoft/vscode-extension-samples"
 	},
 	"publisher": "vscode-samples",
-	"categories": [],
+	"categories": [
+		"Other"
+	],
 	"keywords": [
 		"multi-root ready"
 	],
@@ -17,7 +19,7 @@
 		"vscode": "^1.75.0"
 	},
 	"activationEvents": [
-		"onLanguage:plaintext"
+		"*"
 	],
 	"main": "./client/out/extension",
 	"contributes": {
@@ -41,8 +43,36 @@
 					],
 					"default": "off",
 					"description": "Traces the communication between VS Code and the language server."
-				}
+				},
+				"commentExtension.commentFolder": {
+					"type": "string",
+					"default": "./comments",
+					"description": "Path to the folder where comments will be saved.",
+					"scope": "resource"
+			  	}
 			}
+		},
+		"commands": [
+			{
+				"command": "mywiki.createNote",
+				"title": "Create Note",
+				"enablement": "!commentIsEmpty"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "mywiki.createNote",
+					"when": "false"
+				}
+			],
+			"comments/commentThread/context": [
+				{
+					"command": "mywiki.createNote",
+					"group": "inline",
+					"when": "commentController == comment-sample && commentThreadIsEmpty"
+				}
+			]
 		}
 	},
 	"scripts": {
